@@ -1,0 +1,26 @@
+--- a/natflow_common.c
++++ b/natflow_common.c
+@@ -200,4 +200,23 @@ const char *const hooknames[] = {
+ 	[NF_INET_POST_ROUTING] = "POST",
+ };
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 22)
++/* ip_set_get_byname() signature changed from (net, const char *, ip_set **)
++ * to (net, const struct nlattr *, ip_set **) in kernel 6.18.22 via
++ * commit b7e8590 "netfilter: ipset: use nla_strcmp for IPSET_ATTR_NAME attr"
++ */
++static ip_set_id_t natflow_ip_set_get_byname_compat(struct net *net,
++	const char *name, struct ip_set **set)
++{
++	char buf[NLA_HDRLEN + IPSET_MAXNAMELEN] __aligned(NLA_ALIGNTO) = {};
++	struct nlattr *nla = (struct nlattr *)buf;
++
++	nla->nla_len = NLA_HDRLEN + strlen(name) + 1;
++	nla->nla_type = 0;
++	strscpy(buf + NLA_HDRLEN, name, IPSET_MAXNAMELEN);
++	return ip_set_get_byname(net, nla, set);
++}
++#define ip_set_get_byname natflow_ip_set_get_byname_compat
++#endif
++
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
